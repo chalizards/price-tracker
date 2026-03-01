@@ -1,0 +1,32 @@
+FROM golang:1.22-alpine
+
+WORKDIR /app
+
+RUN apk add --no-cache \
+    gcc \
+    musl-dev \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    tzdata \
+    git
+
+ENV GOPATH=/go
+ENV PATH=$PATH:$GOPATH/bin
+
+# Hot-reload
+RUN go install github.com/air-verse/air@v1.52.3
+
+# Timezone Brasil
+ENV TZ=America/Sao_Paulo
+
+# Chrome chromedp
+ENV CHROME_BIN=/usr/bin/chromium-browser
+ENV CHROME_PATH=/usr/lib/chromium/
+ENV CHROMEDP_NO_SANDBOX=true
+
+EXPOSE 8080
+
+CMD go mod tidy && air -c .air.toml
