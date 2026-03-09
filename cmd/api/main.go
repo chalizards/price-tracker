@@ -1,10 +1,12 @@
 package main
+
 import (
+	"github.com/gin-gonic/gin"
 	"log"
 	"net/http"
 	"os"
-	"github.com/gin-gonic/gin"
 )
+
 func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -15,7 +17,7 @@ func main() {
 
 	router.GET("/health", func(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, gin.H{
-			"status": "ok",
+			"status":  "ok",
 			"message": "Price Tracker API is running",
 		})
 	})

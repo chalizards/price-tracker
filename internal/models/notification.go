@@ -3,6 +3,7 @@ package models
 import "time"
 
 type NotificationType string
+
 const (
 	NotificationPriceDrop     NotificationType = "price_drop"
 	NotificationTargetReached NotificationType = "target_reached"
