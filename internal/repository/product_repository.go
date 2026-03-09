@@ -155,14 +155,14 @@ func (repo *ProductRepository) GetActive(ctx context.Context) ([]models.Product,
 func (repo *ProductRepository) Update(ctx context.Context, product *models.Product) (*models.Product, error) {
 	query := `
 		UPDATE products
-		SET name = $1, target_price = $2, active = $3, updated_at = NOW()
-		WHERE id = $4
+		SET name = $1, url = $2, target_price = $3, active = $4, updated_at = NOW()
+		WHERE id = $5
 		RETURNING id, name, slug, url, store, target_price, active, created_at, updated_at
 	`
 	updatedProduct := &models.Product{}
 
 	err := repo.db.QueryRow(ctx, query,
-		product.Name, product.TargetPrice, product.Active, product.ID,
+		product.Name, product.URL, product.TargetPrice, product.Active, product.ID,
 	).Scan(
 		&updatedProduct.ID, &updatedProduct.Name, &updatedProduct.Slug, &updatedProduct.URL, &updatedProduct.Store, &updatedProduct.TargetPrice,
 		&updatedProduct.Active, &updatedProduct.CreatedAt, &updatedProduct.UpdatedAt,
