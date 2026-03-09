@@ -1,4 +1,5 @@
 package repository
+
 import (
 	"context"
 	"fmt"
@@ -18,7 +19,7 @@ func NewPostgresPool(databaseURL string) (*pgxpool.Pool, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pool: %w", err)
 	}
-	
+
 	// Test connection
 	if err := pool.Ping(context.Background()); err != nil {
 		return nil, fmt.Errorf("failed to ping database: %w", err)

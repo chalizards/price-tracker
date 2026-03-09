@@ -3,8 +3,8 @@ package repository
 import (
 	"context"
 	"fmt"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/chalizards/price-tracker/internal/models"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type ProductRepository struct {
@@ -102,7 +102,7 @@ func (repo *ProductRepository) GetAll(ctx context.Context) ([]models.Product, er
 		return nil, err
 	}
 	defer rows.Close()
-	
+
 	var products []models.Product
 
 	for rows.Next() {
@@ -117,7 +117,7 @@ func (repo *ProductRepository) GetAll(ctx context.Context) ([]models.Product, er
 
 		products = append(products, product)
 	}
-	
+
 	return products, nil
 }
 
@@ -180,7 +180,7 @@ func (repo *ProductRepository) Delete(ctx context.Context, id int) error {
 	if err != nil {
 		return err
 	}
-	
+
 	if result.RowsAffected() == 0 {
 		return fmt.Errorf("product not found")
 	}
