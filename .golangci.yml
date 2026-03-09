@@ -1,0 +1,22 @@
+linters:
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - gosimple
+    - ineffassign
+    - unused
+    - misspell
+    - gofmt
+
+linters-settings:
+  errcheck:
+    check-blank: true
+  misspell:
+    locale: US
+
+issues:
+  exclude-dirs:
+    - tmp
+    - migrations
+    - vendor
