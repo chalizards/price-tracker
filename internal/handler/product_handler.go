@@ -1,12 +1,12 @@
 package handler
 
 import (
-	"net/http"
-	"strconv"
 	"github.com/chalizards/price-tracker/internal/models"
 	"github.com/chalizards/price-tracker/internal/repository"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
+	"net/http"
+	"strconv"
 )
 
 type ProductHandler struct {
