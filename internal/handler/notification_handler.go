@@ -27,7 +27,7 @@ func (handler *NotificationHandler) GetUnreadNotifications(ctx *gin.Context) {
 }
 
 func (handler *NotificationHandler) GetNotificationsByProductID(ctx *gin.Context) {
-	productID, err := strconv.Atoi(ctx.Param("product_id"))
+	productID, err := strconv.Atoi(ctx.Param("id"))
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid product id"})
 		return

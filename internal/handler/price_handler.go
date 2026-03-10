@@ -18,7 +18,7 @@ func NewPriceHandler(repo *repository.PriceRepository) *PriceHandler {
 }
 
 func (handler *PriceHandler) GetPricesByProductID(ctx *gin.Context) {
-	productID, err := strconv.Atoi(ctx.Param("product_id"))
+	productID, err := strconv.Atoi(ctx.Param("id"))
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid product id"})
 		return
@@ -34,7 +34,7 @@ func (handler *PriceHandler) GetPricesByProductID(ctx *gin.Context) {
 }
 
 func (handler *PriceHandler) GetLatestPrice(ctx *gin.Context) {
-	productID, err := strconv.Atoi(ctx.Param("product_id"))
+	productID, err := strconv.Atoi(ctx.Param("id"))
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid product id"})
 		return
