@@ -42,7 +42,10 @@ func ExtractPrice(ctx context.Context, apiKey string, html string, productName s
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return nil, fmt.Errorf("gemini api returned status %d (failed to read body: %w)", resp.StatusCode, readErr)
+		}
 		log.Printf("[gemini] status=%d, headers=%v, body=%s", resp.StatusCode, resp.Header, string(body))
 		return nil, fmt.Errorf("gemini api returned status %d", resp.StatusCode)
 	}
