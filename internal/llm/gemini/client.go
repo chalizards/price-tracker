@@ -1,0 +1,79 @@
+package gemini
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"strings"
+
+	"github.com/chalizards/price-tracker/internal/llm"
+)
+
+const apiURL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent"
+
+func ExtractPrice(ctx context.Context, apiKey string, html string, productName string) (*llm.PriceResult, error) {
+	prompt := buildPriceExtractionPrompt(productName, html)
+
+	reqBody := request{
+		Contents: []content{
+			{Parts: []part{{Text: prompt}}},
+		},
+	}
+
+	bodyBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, strings.NewReader(string(bodyBytes)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-goog-api-key", apiKey)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call gemini api: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		log.Printf("[gemini] status=%d, headers=%v, body=%s", resp.StatusCode, resp.Header, string(body))
+		return nil, fmt.Errorf("gemini api returned status %d", resp.StatusCode)
+	}
+
+	return parseResponse(resp)
+}
+
+func parseResponse(resp *http.Response) (*llm.PriceResult, error) {
+	var geminiResp response
+	if err := json.NewDecoder(resp.Body).Decode(&geminiResp); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	if len(geminiResp.Candidates) == 0 || len(geminiResp.Candidates[0].Content.Parts) == 0 {
+		return nil, fmt.Errorf("empty response from gemini")
+	}
+
+	text := geminiResp.Candidates[0].Content.Parts[0].Text
+	log.Printf("[gemini] raw response text: %s", text)
+
+	text = strings.TrimPrefix(text, "```json")
+	text = strings.TrimSuffix(text, "```")
+	text = strings.TrimSpace(text)
+	log.Printf("[gemini] cleaned text: %s", text)
+
+	var result llm.PriceResult
+	if err := json.Unmarshal([]byte(text), &result); err != nil {
+		return nil, fmt.Errorf("failed to parse price from response: %w (raw: %s)", err, text)
+	}
+
+	log.Printf("[gemini] parsed result: price=%.2f, currency=%s", result.Price, result.Currency)
+
+	return &result, nil
+}
