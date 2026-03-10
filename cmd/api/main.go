@@ -74,12 +74,12 @@ func main() {
 		api.DELETE("/products/:id", productHandler.DeleteProduct)
 
 		// Prices
-		api.GET("/products/:product_id/prices", priceHandler.GetPricesByProductID)
-		api.GET("/products/:product_id/prices/latest", priceHandler.GetLatestPrice)
+		api.GET("/products/:id/prices", priceHandler.GetPricesByProductID)
+		api.GET("/products/:id/prices/latest", priceHandler.GetLatestPrice)
 
 		// Notifications
 		api.GET("/notifications/unread", notificationHandler.GetUnreadNotifications)
-		api.GET("/products/:product_id/notifications", notificationHandler.GetNotificationsByProductID)
+		api.GET("/products/:id/notifications", notificationHandler.GetNotificationsByProductID)
 		api.PATCH("/notifications/:id/read", notificationHandler.MarkAsRead)
 		api.PATCH("/notifications/read-all", notificationHandler.MarkAllAsRead)
 	}
