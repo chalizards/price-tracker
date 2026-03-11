@@ -30,7 +30,7 @@ func main() {
 		log.Fatal("GEMINI_API_KEY is required")
 	}
 
-	scrapeInterval := 60
+	scrapeInterval := 120
 	if val := os.Getenv("SCRAPE_INTERVAL_MINUTES"); val != "" {
 		if parsed, err := strconv.Atoi(val); err == nil {
 			scrapeInterval = parsed
@@ -48,10 +48,19 @@ func main() {
 	priceRepo := repository.NewPriceRepository(db)
 	notificationRepo := repository.NewNotificationRepository(db)
 
+	// Services
+	notificationService := service.NewNotificationService(notificationRepo, priceRepo)
+	trackingService := service.NewPriceTrackingService(productRepo, priceRepo, notificationService, geminiAPIKey)
+
+	// Scheduler
+	sc := scheduler.NewScheduler(trackingService, scrapeInterval)
+	go sc.Start(context.Background())
+
 	// Handlers
 	productHandler := handler.NewProductHandler(productRepo)
 	priceHandler := handler.NewPriceHandler(priceRepo)
 	notificationHandler := handler.NewNotificationHandler(notificationRepo)
+	scrapeHandler := handler.NewScrapeHandler(productRepo, priceRepo, trackingService)
 
 	router := gin.Default()
 
@@ -76,6 +85,9 @@ func main() {
 		// Prices
 		api.GET("/products/:id/prices", priceHandler.GetPricesByProductID)
 		api.GET("/products/:id/prices/latest", priceHandler.GetLatestPrice)
+
+		// Scrape
+		api.POST("/products/:id/scrape", scrapeHandler.ScrapeProduct)
 
 		// Notifications
 		api.GET("/notifications/unread", notificationHandler.GetUnreadNotifications)
