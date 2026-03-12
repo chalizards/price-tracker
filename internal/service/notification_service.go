@@ -25,7 +25,7 @@ func (service *NotificationService) CheckPriceNotifications(ctx context.Context,
 
 func (service *NotificationService) CreateErrorNotification(ctx context.Context, product *models.Product, message string) {
 	title := fmt.Sprintf("Error scraping %s", product.Name)
-	service.CreateNotification(ctx, product, message, title, models.NotificationScrapeError)
+	service.CreateNotification(ctx, product, nil, message, title, models.NotificationScrapeError)
 }
 
 func (service *NotificationService) checkTargetReached(ctx context.Context, product *models.Product, newPrice *models.Price) {
@@ -36,7 +36,7 @@ func (service *NotificationService) checkTargetReached(ctx context.Context, prod
 	title := fmt.Sprintf("Target price reached for %s", product.Name)
 	message := fmt.Sprintf("Current price: %s %.2f (target: %.2f)", newPrice.Currency, newPrice.Price, *product.TargetPrice)
 
-	service.CreateNotification(ctx, product, message, title, models.NotificationTargetReached)
+	service.CreateNotification(ctx, product, &newPrice.ID, message, title, models.NotificationTargetReached)
 }
 
 func (service *NotificationService) checkPriceDrop(ctx context.Context, product *models.Product, newPrice *models.Price) {
@@ -53,12 +53,13 @@ func (service *NotificationService) checkPriceDrop(ctx context.Context, product 
 	drop := previousPrice.Price - newPrice.Price
 	title := fmt.Sprintf("Price drop for %s", product.Name)
 	message := fmt.Sprintf("Price dropped by %s %.2f (from %.2f to %.2f)", newPrice.Currency, drop, previousPrice.Price, newPrice.Price)
-	service.CreateNotification(ctx, product, message, title, models.NotificationPriceDrop)
+	service.CreateNotification(ctx, product, &newPrice.ID, message, title, models.NotificationPriceDrop)
 }
 
-func (service *NotificationService) CreateNotification(ctx context.Context, product *models.Product, message string, title string, notificationType models.NotificationType) {
+func (service *NotificationService) CreateNotification(ctx context.Context, product *models.Product, priceID *int, message string, title string, notificationType models.NotificationType) {
 	notification := &models.Notification{
 		ProductID: product.ID,
+		PriceID:   priceID,
 		Type:      notificationType,
 		Title:     title,
 		Message:   message,
