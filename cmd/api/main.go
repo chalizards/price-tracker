@@ -5,7 +5,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 
 	"github.com/chalizards/price-tracker/internal/handler"
 	"github.com/chalizards/price-tracker/internal/repository"
@@ -25,16 +27,23 @@ func main() {
 		log.Fatal("DATABASE_URL is required")
 	}
 
-	geminiAPIKey := os.Getenv("GEMINI_API_KEY")
+	geminiSecretName := os.Getenv("GEMINI_SECRET_NAME")
+	if geminiSecretName == "" {
+		log.Fatal("GEMINI_SECRET_NAME is required")
+	}
+
+	geminiAPIKey := service.GetGeminiSecret(geminiSecretName)
 	if geminiAPIKey == "" {
 		log.Fatal("GEMINI_API_KEY is required")
 	}
 
-	scrapeInterval := 60
-	if val := os.Getenv("SCRAPE_INTERVAL_MINUTES"); val != "" {
-		if parsed, err := strconv.Atoi(val); err == nil {
-			scrapeInterval = parsed
-		}
+	scrapeIntervalStr := os.Getenv("SCRAPE_INTERVAL_MINUTES")
+	if scrapeIntervalStr == "" {
+		log.Fatal("SCRAPE_INTERVAL_MINUTES is required")
+	}
+	scrapeInterval, err := strconv.Atoi(scrapeIntervalStr)
+	if err != nil {
+		log.Fatal("SCRAPE_INTERVAL_MINUTES must be a valid integer")
 	}
 
 	db, err := repository.NewPostgresPool(databaseURL)
@@ -48,10 +57,22 @@ func main() {
 	priceRepo := repository.NewPriceRepository(db)
 	notificationRepo := repository.NewNotificationRepository(db)
 
+	// Services
+	notificationService := service.NewNotificationService(notificationRepo, priceRepo)
+	trackingService := service.NewPriceTrackingService(productRepo, priceRepo, notificationService, geminiAPIKey)
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	// Scheduler
+	sc := scheduler.NewScheduler(trackingService, scrapeInterval)
+	go sc.Start(ctx)
+
 	// Handlers
 	productHandler := handler.NewProductHandler(productRepo)
 	priceHandler := handler.NewPriceHandler(priceRepo)
 	notificationHandler := handler.NewNotificationHandler(notificationRepo)
+	scrapeHandler := handler.NewScrapeHandler(productRepo, priceRepo, trackingService)
 
 	router := gin.Default()
 
@@ -76,6 +97,9 @@ func main() {
 		// Prices
 		api.GET("/products/:id/prices", priceHandler.GetPricesByProductID)
 		api.GET("/products/:id/prices/latest", priceHandler.GetLatestPrice)
+
+		// Scrape
+		api.POST("/products/:id/scrape", scrapeHandler.ScrapeProduct)
 
 		// Notifications
 		api.GET("/notifications/unread", notificationHandler.GetUnreadNotifications)

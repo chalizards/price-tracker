@@ -12,7 +12,7 @@ import (
 	"github.com/chalizards/price-tracker/internal/llm"
 )
 
-const apiURL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent"
+const apiURL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent"
 
 func ExtractPrice(ctx context.Context, apiKey string, html string, productName string) (*llm.PriceResult, error) {
 	prompt := buildPriceExtractionPrompt(productName, html)
