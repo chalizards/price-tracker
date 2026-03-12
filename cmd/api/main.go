@@ -25,16 +25,23 @@ func main() {
 		log.Fatal("DATABASE_URL is required")
 	}
 
-	geminiAPIKey := os.Getenv("GEMINI_API_KEY")
+	geminiSecretName := os.Getenv("GEMINI_SECRET_NAME")
+	if geminiSecretName == "" {
+		log.Fatal("GEMINI_SECRET_NAME is required")
+	}
+
+	geminiAPIKey := service.GetGeminiSecret(geminiSecretName)
 	if geminiAPIKey == "" {
 		log.Fatal("GEMINI_API_KEY is required")
 	}
 
-	scrapeInterval := 120
-	if val := os.Getenv("SCRAPE_INTERVAL_MINUTES"); val != "" {
-		if parsed, err := strconv.Atoi(val); err == nil {
-			scrapeInterval = parsed
-		}
+	scrapeIntervalStr := os.Getenv("SCRAPE_INTERVAL_MINUTES")
+	if scrapeIntervalStr == "" {
+		log.Fatal("SCRAPE_INTERVAL_MINUTES is required")
+	}
+	scrapeInterval, err := strconv.Atoi(scrapeIntervalStr)
+	if err != nil {
+		log.Fatal("SCRAPE_INTERVAL_MINUTES must be a valid integer")
 	}
 
 	db, err := repository.NewPostgresPool(databaseURL)
