@@ -5,7 +5,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 
 	"github.com/chalizards/price-tracker/internal/handler"
 	"github.com/chalizards/price-tracker/internal/repository"
@@ -59,9 +61,12 @@ func main() {
 	notificationService := service.NewNotificationService(notificationRepo, priceRepo)
 	trackingService := service.NewPriceTrackingService(productRepo, priceRepo, notificationService, geminiAPIKey)
 
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
 	// Scheduler
 	sc := scheduler.NewScheduler(trackingService, scrapeInterval)
-	go sc.Start(context.Background())
+	go sc.Start(ctx)
 
 	// Handlers
 	productHandler := handler.NewProductHandler(productRepo)
