@@ -37,6 +37,26 @@ func main() {
 		log.Fatal("GEMINI_API_KEY is required")
 	}
 
+	googleClientID := os.Getenv("GOOGLE_CLIENT_ID")
+	if googleClientID == "" {
+		log.Fatal("GOOGLE_CLIENT_ID is required")
+	}
+
+	googleClientSecret := os.Getenv("GOOGLE_CLIENT_SECRET")
+	if googleClientSecret == "" {
+		log.Fatal("GOOGLE_CLIENT_SECRET is required")
+	}
+
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		log.Fatal("JWT_SECRET is required")
+	}
+
+	googleRedirectURL := os.Getenv("GOOGLE_REDIRECT_URL")
+	if googleRedirectURL == "" {
+		googleRedirectURL = "http://localhost:8080/api/auth/google/callback"
+	}
+
 	scrapeIntervalStr := os.Getenv("SCRAPE_INTERVAL_MINUTES")
 	if scrapeIntervalStr == "" {
 		log.Fatal("SCRAPE_INTERVAL_MINUTES is required")
@@ -56,10 +76,12 @@ func main() {
 	productRepo := repository.NewProductRepository(db)
 	priceRepo := repository.NewPriceRepository(db)
 	notificationRepo := repository.NewNotificationRepository(db)
+	userRepo := repository.NewUserRepository(db)
 
 	// Services
 	notificationService := service.NewNotificationService(notificationRepo, priceRepo)
 	trackingService := service.NewPriceTrackingService(productRepo, priceRepo, notificationService, geminiAPIKey)
+	authService := service.NewAuthService(googleClientID, googleClientSecret, googleRedirectURL, jwtSecret, userRepo)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -73,6 +95,7 @@ func main() {
 	priceHandler := handler.NewPriceHandler(priceRepo)
 	notificationHandler := handler.NewNotificationHandler(notificationRepo)
 	scrapeHandler := handler.NewScrapeHandler(productRepo, priceRepo, trackingService)
+	authHandler := handler.NewAuthHandler(authService)
 
 	router := gin.Default()
 
@@ -85,27 +108,39 @@ func main() {
 
 	api := router.Group("/api")
 	{
-		// Products
-		api.POST("/products", productHandler.CreateProduct)
-		api.GET("/products", productHandler.GetAllProducts)
-		api.GET("/products/active", productHandler.GetActiveProducts)
-		api.GET("/products/:id", productHandler.GetProductByID)
-		api.GET("/products/slug/:slug", productHandler.GetProductBySlug)
-		api.PUT("/products/:id", productHandler.UpdateProduct)
-		api.DELETE("/products/:id", productHandler.DeleteProduct)
+		// Auth (public)
+		api.GET("/auth/google/login", authHandler.GoogleLogin)
+		api.GET("/auth/google/callback", authHandler.GoogleCallback)
 
-		// Prices
-		api.GET("/products/:id/prices", priceHandler.GetPricesByProductID)
-		api.GET("/products/:id/prices/latest", priceHandler.GetLatestPrice)
+		// Protected routes
+		protected := api.Group("/")
+		protected.Use(handler.AuthMiddleware(authService, userRepo))
+		{
+			// Auth
+			protected.GET("/auth/me", authHandler.Me)
 
-		// Scrape
-		api.POST("/products/:id/scrape", scrapeHandler.ScrapeProduct)
+			// Products
+			protected.POST("/products", productHandler.CreateProduct)
+			protected.GET("/products", productHandler.GetAllProducts)
+			protected.GET("/products/active", productHandler.GetActiveProducts)
+			protected.GET("/products/:id", productHandler.GetProductByID)
+			protected.GET("/products/slug/:slug", productHandler.GetProductBySlug)
+			protected.PUT("/products/:id", productHandler.UpdateProduct)
+			protected.DELETE("/products/:id", productHandler.DeleteProduct)
 
-		// Notifications
-		api.GET("/notifications/unread", notificationHandler.GetUnreadNotifications)
-		api.GET("/products/:id/notifications", notificationHandler.GetNotificationsByProductID)
-		api.PATCH("/notifications/:id/read", notificationHandler.MarkAsRead)
-		api.PATCH("/notifications/read-all", notificationHandler.MarkAllAsRead)
+			// Prices
+			protected.GET("/products/:id/prices", priceHandler.GetPricesByProductID)
+			protected.GET("/products/:id/prices/latest", priceHandler.GetLatestPrice)
+
+			// Scrape
+			protected.POST("/products/:id/scrape", scrapeHandler.ScrapeProduct)
+
+			// Notifications
+			protected.GET("/notifications/unread", notificationHandler.GetUnreadNotifications)
+			protected.GET("/products/:id/notifications", notificationHandler.GetNotificationsByProductID)
+			protected.PATCH("/notifications/:id/read", notificationHandler.MarkAsRead)
+			protected.PATCH("/notifications/read-all", notificationHandler.MarkAllAsRead)
+		}
 	}
 
 	log.Printf("Starting server on port %s", port)
