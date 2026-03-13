@@ -70,11 +70,16 @@ func (service *AuthService) HandleGoogleCallback(ctx context.Context, authCode s
 		return "", nil, fmt.Errorf("failed to fetch user info: %w", err)
 	}
 
+	var picturePtr *string
+	if userInfo.Picture != "" {
+		picturePtr = &userInfo.Picture
+	}
+
 	user, err := service.userRepo.Upsert(ctx, &models.User{
 		GoogleID: userInfo.Sub,
 		Email:    userInfo.Email,
 		Name:     userInfo.Name,
-		Picture:  userInfo.Picture,
+		Picture:  picturePtr,
 	})
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to upsert user: %w", err)
