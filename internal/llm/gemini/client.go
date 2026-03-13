@@ -10,12 +10,14 @@ import (
 	"strings"
 
 	"github.com/chalizards/price-tracker/internal/llm"
+	"github.com/chalizards/price-tracker/internal/sanitizer"
 )
 
 const apiURL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent"
 
 func ExtractPrice(ctx context.Context, apiKey string, html string, productName string) (*llm.PriceResult, error) {
-	prompt := buildPriceExtractionPrompt(productName, html)
+	cleanHTML := sanitizer.SanitizeForLLM(html)
+	prompt := buildPriceExtractionPrompt(productName, cleanHTML)
 
 	reqBody := request{
 		Contents: []content{
@@ -74,6 +76,13 @@ func parseResponse(resp *http.Response) (*llm.PriceResult, error) {
 	var result llm.PriceResult
 	if err := json.Unmarshal([]byte(text), &result); err != nil {
 		return nil, fmt.Errorf("failed to parse price from response: %w (raw: %s)", err, text)
+	}
+
+	if result.Price <= 0 {
+		return nil, fmt.Errorf("invalid price from LLM: %.2f", result.Price)
+	}
+	if result.Currency == "" {
+		return nil, fmt.Errorf("empty currency from LLM")
 	}
 
 	log.Printf("[gemini] parsed result: price=%.2f, currency=%s", result.Price, result.Currency)
