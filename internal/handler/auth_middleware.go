@@ -7,6 +7,7 @@ import (
 	"github.com/chalizards/price-tracker/internal/repository"
 	"github.com/chalizards/price-tracker/internal/service"
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 )
 
 func AuthMiddleware(authService *service.AuthService, userRepo *repository.UserRepository) gin.HandlerFunc {
@@ -31,7 +32,11 @@ func AuthMiddleware(authService *service.AuthService, userRepo *repository.UserR
 
 		user, err := userRepo.FindByID(ctx.Request.Context(), claims.UserID)
 		if err != nil {
-			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "user not found"})
+			if err == pgx.ErrNoRows {
+				ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "user not found"})
+				return
+			}
+			ctx.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 			return
 		}
 
