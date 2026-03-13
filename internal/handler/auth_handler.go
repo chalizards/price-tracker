@@ -16,7 +16,11 @@ func NewAuthHandler(authService *service.AuthService) *AuthHandler {
 }
 
 func (handler *AuthHandler) GoogleLogin(ctx *gin.Context) {
-	url, state := handler.authService.GetGoogleLoginURL()
+	url, state, err := handler.authService.GetGoogleLoginURL()
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to initiate login"})
+		return
+	}
 	ctx.SetCookie("oauth_state", state, 300, "/", "", false, true)
 	ctx.Redirect(http.StatusTemporaryRedirect, url)
 }

@@ -50,10 +50,13 @@ func NewAuthService(clientID, clientSecret, redirectURL, jwtSecret string, userR
 	}
 }
 
-func (service *AuthService) GetGoogleLoginURL() (string, string) {
-	state := generateState()
+func (service *AuthService) GetGoogleLoginURL() (string, string, error) {
+	state, err := generateState()
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate state: %w", err)
+	}
 	url := service.oauthConfig.AuthCodeURL(state, oauth2.AccessTypeOffline)
-	return url, state
+	return url, state, nil
 }
 
 func (service *AuthService) HandleGoogleCallback(ctx context.Context, authCode string) (string, *models.User, error) {
@@ -116,7 +119,13 @@ func (service *AuthService) generateJWT(user *models.User) (string, error) {
 }
 
 func fetchGoogleUserInfo(accessToken string) (*GoogleUserInfo, error) {
-	resp, err := http.Get("https://www.googleapis.com/oauth2/v3/userinfo?access_token=" + accessToken)
+	req, err := http.NewRequest("GET", "https://www.googleapis.com/oauth2/v3/userinfo", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -138,8 +147,10 @@ func fetchGoogleUserInfo(accessToken string) (*GoogleUserInfo, error) {
 	return &userInfo, nil
 }
 
-func generateState() string {
+func generateState() (string, error) {
 	b := make([]byte, 32)
-	rand.Read(b)
-	return base64.URLEncoding.EncodeToString(b)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.URLEncoding.EncodeToString(b), nil
 }
