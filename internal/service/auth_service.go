@@ -18,10 +18,11 @@ import (
 )
 
 type GoogleUserInfo struct {
-	Sub     string `json:"sub"`
-	Email   string `json:"email"`
-	Name    string `json:"name"`
-	Picture string `json:"picture"`
+	Sub           string `json:"sub"`
+	Email         string `json:"email"`
+	Name          string `json:"name"`
+	Picture       string `json:"picture"`
+	EmailVerified bool   `json:"email_verified"`
 }
 
 type Claims struct {
@@ -55,7 +56,7 @@ func (service *AuthService) GetGoogleLoginURL() (string, string, error) {
 	if err != nil {
 		return "", "", fmt.Errorf("failed to generate state: %w", err)
 	}
-	url := service.oauthConfig.AuthCodeURL(state, oauth2.AccessTypeOffline)
+	url := service.oauthConfig.AuthCodeURL(state, oauth2.AccessTypeOnline)
 	return url, state, nil
 }
 
@@ -65,9 +66,13 @@ func (service *AuthService) HandleGoogleCallback(ctx context.Context, authCode s
 		return "", nil, fmt.Errorf("failed to exchange code: %w", err)
 	}
 
-	userInfo, err := fetchGoogleUserInfo(token.AccessToken)
+	userInfo, err := fetchGoogleUserInfo(ctx, token.AccessToken)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to fetch user info: %w", err)
+	}
+
+	if !userInfo.EmailVerified {
+		return "", nil, fmt.Errorf("email not verified")
 	}
 
 	var picturePtr *string
@@ -123,14 +128,22 @@ func (service *AuthService) generateJWT(user *models.User) (string, error) {
 	return token.SignedString(service.jwtSecret)
 }
 
-func fetchGoogleUserInfo(accessToken string) (*GoogleUserInfo, error) {
-	req, err := http.NewRequest("GET", "https://www.googleapis.com/oauth2/v3/userinfo", nil)
+var googleHTTPClient = &http.Client{Timeout: 10 * time.Second}
+
+const googleUserInfoURL = "https://www.googleapis.com/oauth2/v3/userinfo"
+
+func fetchGoogleUserInfo(ctx context.Context, accessToken string) (*GoogleUserInfo, error) {
+	return fetchGoogleUserInfoFromURL(ctx, googleUserInfoURL, accessToken)
+}
+
+func fetchGoogleUserInfoFromURL(ctx context.Context, url string, accessToken string) (*GoogleUserInfo, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := googleHTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}

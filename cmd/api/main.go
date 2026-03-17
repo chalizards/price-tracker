@@ -57,6 +57,11 @@ func main() {
 		googleRedirectURL = "http://localhost:8080/api/auth/google/callback"
 	}
 
+	frontendURL := os.Getenv("FRONTEND_URL")
+	if frontendURL == "" {
+		frontendURL = "http://localhost:3000" // Default for local frontend (React/Next.js)
+	}
+
 	scrapeIntervalStr := os.Getenv("SCRAPE_INTERVAL_MINUTES")
 	if scrapeIntervalStr == "" {
 		log.Fatal("SCRAPE_INTERVAL_MINUTES is required")
@@ -95,9 +100,24 @@ func main() {
 	priceHandler := handler.NewPriceHandler(priceRepo)
 	notificationHandler := handler.NewNotificationHandler(notificationRepo)
 	scrapeHandler := handler.NewScrapeHandler(productRepo, priceRepo, trackingService)
-	authHandler := handler.NewAuthHandler(authService)
+	authHandler := handler.NewAuthHandler(authService, frontendURL)
 
 	router := gin.Default()
+
+	// CORS Middleware
+	router.Use(func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", frontendURL)
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, PATCH, DELETE")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+
+		c.Next()
+	})
 
 	router.GET("/health", func(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, gin.H{
@@ -111,6 +131,7 @@ func main() {
 		// Auth (public)
 		api.GET("/auth/google/login", authHandler.GoogleLogin)
 		api.GET("/auth/google/callback", authHandler.GoogleCallback)
+		api.POST("/auth/logout", authHandler.Logout)
 
 		// Protected routes
 		protected := api.Group("/")

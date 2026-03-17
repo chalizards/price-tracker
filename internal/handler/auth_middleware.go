@@ -12,19 +12,28 @@ import (
 
 func AuthMiddleware(authService *service.AuthService, userRepo *repository.UserRepository) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		authHeader := ctx.GetHeader("Authorization")
-		if authHeader == "" {
-			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing authorization header"})
+		var tokenString string
+
+		if authHeader := ctx.GetHeader("Authorization"); authHeader != "" {
+			parts := strings.SplitN(authHeader, " ", 2)
+			if len(parts) == 2 && parts[0] == "Bearer" {
+				tokenString = parts[1]
+			}
+		}
+
+		if tokenString == "" {
+			cookie, err := ctx.Cookie(jwtCookieName)
+			if err == nil && cookie != "" {
+				tokenString = cookie
+			}
+		}
+
+		if tokenString == "" {
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing authentication"})
 			return
 		}
 
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid authorization format, use: Bearer <token>"})
-			return
-		}
-
-		claims, err := authService.ValidateJWT(parts[1])
+		claims, err := authService.ValidateJWT(tokenString)
 		if err != nil {
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
 			return
