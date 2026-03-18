@@ -2,30 +2,29 @@ package service
 
 import (
 	"context"
-	"log"
-	"sync"
+	"fmt"
+	"time"
 
 	secretmanager "cloud.google.com/go/secretmanager/apiv1"
 	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
+	"github.com/chalizards/price-tracker/internal/cache"
+	"github.com/redis/go-redis/v9"
 )
 
-var (
-	secretCache = make(map[string]string)
-	secretMu    sync.RWMutex
-)
+const secretCacheTTL = 1 * time.Hour
 
-func GetGeminiSecret(secretName string) string {
-	secretMu.RLock()
-	if cached, ok := secretCache[secretName]; ok {
-		secretMu.RUnlock()
-		return cached
+func GetGeminiSecret(ctx context.Context, redisClient *cache.RedisClient, secretName string) (string, error) {
+	cached, err := redisClient.Get(ctx, "secret:"+secretName)
+	if err == nil {
+		return cached, nil
 	}
-	secretMu.RUnlock()
+	if err != redis.Nil {
+		return "", fmt.Errorf("failed to read secret cache: %w", err)
+	}
 
-	ctx := context.Background()
 	client, err := secretmanager.NewClient(ctx)
 	if err != nil {
-		log.Fatalf("Falha ao criar cliente: %v", err)
+		return "", fmt.Errorf("failed to create secret manager client: %w", err)
 	}
 	defer client.Close()
 
@@ -35,14 +34,14 @@ func GetGeminiSecret(secretName string) string {
 
 	result, err := client.AccessSecretVersion(ctx, req)
 	if err != nil {
-		log.Fatalf("Falha ao acessar versão do segredo: %v", err)
+		return "", fmt.Errorf("failed to access secret version: %w", err)
 	}
 
 	value := string(result.Payload.Data)
 
-	secretMu.Lock()
-	secretCache[secretName] = value
-	secretMu.Unlock()
+	if cacheErr := redisClient.Set(ctx, "secret:"+secretName, value, secretCacheTTL); cacheErr != nil {
+		return value, cacheErr
+	}
 
-	return value
+	return value, nil
 }
