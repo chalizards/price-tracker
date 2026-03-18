@@ -41,7 +41,7 @@ func main() {
 	}
 	defer db.Close()
 
-	productRepo := repository.NewProductRepository(db)
+	storeRepo := repository.NewStoreRepository(db)
 
 	rmq, err := queue.NewRabbitMQ(rabbitmqURL)
 	if err != nil {
@@ -65,7 +65,7 @@ func main() {
 	for {
 		select {
 		case <-ticker.C:
-			publishScrapeJobs(ctx, productRepo, rmq)
+			publishScrapeJobs(ctx, storeRepo, rmq)
 		case <-ctx.Done():
 			log.Println("Scheduler stopped")
 			return
@@ -73,33 +73,33 @@ func main() {
 	}
 }
 
-func publishScrapeJobs(ctx context.Context, productRepo *repository.ProductRepository, rmq *queue.RabbitMQ) {
-	products, err := productRepo.GetActive(ctx)
+func publishScrapeJobs(ctx context.Context, storeRepo *repository.StoreRepository, rmq *queue.RabbitMQ) {
+	stores, err := storeRepo.GetActiveStores(ctx)
 	if err != nil {
-		log.Printf("Failed to get active products: %v", err)
+		log.Printf("Failed to get active stores: %v", err)
 		return
 	}
 
-	if len(products) == 0 {
-		log.Println("No active products to enqueue")
+	if len(stores) == 0 {
+		log.Println("No active stores to enqueue")
 		return
 	}
 
-	for _, p := range products {
-		msg := queue.ScrapeJobMessage{ProductID: p.ID}
+	for _, s := range stores {
+		msg := queue.ScrapeJobMessage{StoreID: s.ID}
 		body, err := json.Marshal(msg)
 		if err != nil {
-			log.Printf("Failed to marshal message for product %d: %v", p.ID, err)
+			log.Printf("Failed to marshal message for store %d: %v", s.ID, err)
 			continue
 		}
 
 		if err := rmq.Publish(ctx, queue.ScrapeJobsQueue, body); err != nil {
-			log.Printf("Failed to publish job for product %d: %v", p.ID, err)
+			log.Printf("Failed to publish job for store %d: %v", s.ID, err)
 			continue
 		}
 
-		log.Printf("Enqueued scrape job for product %d (%s)", p.ID, p.Name)
+		log.Printf("Enqueued scrape job for store %d (%s)", s.ID, s.Name)
 	}
 
-	log.Printf("Published %d scrape jobs", len(products))
+	log.Printf("Published %d scrape jobs", len(stores))
 }

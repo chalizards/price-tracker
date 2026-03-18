@@ -59,11 +59,12 @@ func main() {
 	defer db.Close()
 
 	productRepo := repository.NewProductRepository(db)
+	storeRepo := repository.NewStoreRepository(db)
 	priceRepo := repository.NewPriceRepository(db)
 	notificationRepo := repository.NewNotificationRepository(db)
 
 	notificationService := service.NewNotificationService(notificationRepo, priceRepo)
-	trackingService := service.NewPriceTrackingService(productRepo, priceRepo, notificationService, geminiAPIKey)
+	trackingService := service.NewPriceTrackingService(productRepo, storeRepo, priceRepo, notificationService, geminiAPIKey)
 
 	rmq, err := queue.NewRabbitMQ(rabbitmqURL)
 	if err != nil {
@@ -99,17 +100,17 @@ func main() {
 				continue
 			}
 
-			product, err := productRepo.GetByID(ctx, job.ProductID)
+			store, err := storeRepo.GetByID(ctx, job.StoreID)
 			if err != nil {
-				log.Printf("Failed to get product %d: %v", job.ProductID, err)
+				log.Printf("Failed to get store %d: %v", job.StoreID, err)
 				if nackErr := msg.Nack(false, false); nackErr != nil {
 					log.Printf("Failed to nack message: %v", nackErr)
 				}
 				continue
 			}
 
-			if err := trackingService.ScrapeProduct(ctx, product); err != nil {
-				log.Printf("Failed to scrape product %d: %v", job.ProductID, err)
+			if err := trackingService.ScrapeStore(ctx, store); err != nil {
+				log.Printf("Failed to scrape store %d: %v", job.StoreID, err)
 				if nackErr := msg.Nack(false, true); nackErr != nil {
 					log.Printf("Failed to nack message: %v", nackErr)
 				}
@@ -119,7 +120,7 @@ func main() {
 			if err := msg.Ack(false); err != nil {
 				log.Printf("Failed to ack message: %v", err)
 			}
-			log.Printf("Successfully scraped product %d (%s)", product.ID, product.Name)
+			log.Printf("Successfully scraped store %d (%s)", store.ID, store.Name)
 
 		case <-ctx.Done():
 			log.Println("Worker stopped")

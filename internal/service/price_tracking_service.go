@@ -13,6 +13,7 @@ import (
 
 type PriceTrackingService struct {
 	productRepo         *repository.ProductRepository
+	storeRepo           *repository.StoreRepository
 	priceRepo           *repository.PriceRepository
 	notificationService *NotificationService
 	geminiAPIKey        string
@@ -20,33 +21,35 @@ type PriceTrackingService struct {
 
 func NewPriceTrackingService(
 	productRepo *repository.ProductRepository,
+	storeRepo *repository.StoreRepository,
 	priceRepo *repository.PriceRepository,
 	notificationService *NotificationService,
 	geminiAPIKey string,
 ) *PriceTrackingService {
 	return &PriceTrackingService{
 		productRepo:         productRepo,
+		storeRepo:           storeRepo,
 		priceRepo:           priceRepo,
 		notificationService: notificationService,
 		geminiAPIKey:        geminiAPIKey,
 	}
 }
 
-func (s *PriceTrackingService) ScrapeProduct(ctx context.Context, product *models.Product) error {
-	log.Printf("Scraping product: %s (%s)", product.Name, product.URL)
+func (s *PriceTrackingService) ScrapeStore(ctx context.Context, store *models.Store) error {
+	product, err := s.productRepo.GetByID(ctx, store.ProductID)
+	if err != nil {
+		return fmt.Errorf("failed to get product: %w", err)
+	}
 
-	html, err := scraper.FetchHTML(ctx, product.URL)
+	log.Printf("Scraping store: %s (%s)", store.Name, store.URL)
+
+	html, err := scraper.FetchHTML(ctx, store.URL)
 	if err != nil {
 		s.notificationService.CreateErrorNotification(ctx, product, fmt.Sprintf("failed to fetch page: %v", err))
 		return fmt.Errorf("failed to fetch html: %w", err)
 	}
 
 	log.Printf("[scrape] HTML length: %d chars", len(html))
-	if len(html) > 500 {
-		log.Printf("[scrape] HTML preview: %s", html[:500])
-	} else {
-		log.Printf("[scrape] HTML full: %s", html)
-	}
 
 	result, err := gemini.ExtractPrice(ctx, s.geminiAPIKey, html, product.Name)
 	if err != nil {
@@ -56,7 +59,7 @@ func (s *PriceTrackingService) ScrapeProduct(ctx context.Context, product *model
 
 	for _, entry := range result.Prices {
 		price := &models.Price{
-			ProductID:   product.ID,
+			StoreID:     store.ID,
 			Price:       entry.Price,
 			Currency:    entry.Currency,
 			PaymentType: models.PaymentType(entry.PaymentType),
@@ -66,29 +69,29 @@ func (s *PriceTrackingService) ScrapeProduct(ctx context.Context, product *model
 			return fmt.Errorf("failed to save price (%s): %w", entry.PaymentType, err)
 		}
 
-		log.Printf("Price saved: %s %.2f (%s) for %s", price.Currency, price.Price, price.PaymentType, product.Name)
+		log.Printf("Price saved: %s %.2f (%s) for %s at %s", price.Currency, price.Price, price.PaymentType, product.Name, store.Name)
 
-		s.notificationService.CheckPriceNotifications(ctx, product, price)
+		s.notificationService.CheckPriceNotifications(ctx, product, store, price)
 	}
 
 	return nil
 }
 
 func (s *PriceTrackingService) ScrapeAllActive(ctx context.Context) {
-	products, err := s.productRepo.GetActive(ctx)
+	stores, err := s.storeRepo.GetActiveStores(ctx)
 	if err != nil {
-		log.Printf("Failed to get active products: %v", err)
+		log.Printf("Failed to get active stores: %v", err)
 		return
 	}
 
-	if len(products) == 0 {
-		log.Println("No active products to scrape")
+	if len(stores) == 0 {
+		log.Println("No active stores to scrape")
 		return
 	}
 
-	for i := range products {
-		if err := s.ScrapeProduct(ctx, &products[i]); err != nil {
-			log.Printf("Failed to scrape %s: %v", products[i].Name, err)
+	for i := range stores {
+		if err := s.ScrapeStore(ctx, &stores[i]); err != nil {
+			log.Printf("Failed to scrape store %s: %v", stores[i].Name, err)
 		}
 	}
 }

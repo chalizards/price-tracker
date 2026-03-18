@@ -70,7 +70,7 @@ func main() {
 
 	frontendURL := os.Getenv("FRONTEND_URL")
 	if frontendURL == "" {
-		frontendURL = "http://localhost:3000" // Default for local frontend (React/Next.js)
+		frontendURL = "http://localhost:3000"
 	}
 
 	db, err := repository.NewPostgresPool(databaseURL)
@@ -81,20 +81,22 @@ func main() {
 
 	// Repositories
 	productRepo := repository.NewProductRepository(db)
+	storeRepo := repository.NewStoreRepository(db)
 	priceRepo := repository.NewPriceRepository(db)
 	notificationRepo := repository.NewNotificationRepository(db)
 	userRepo := repository.NewUserRepository(db)
 
 	// Services
 	notificationService := service.NewNotificationService(notificationRepo, priceRepo)
-	trackingService := service.NewPriceTrackingService(productRepo, priceRepo, notificationService, geminiAPIKey)
+	trackingService := service.NewPriceTrackingService(productRepo, storeRepo, priceRepo, notificationService, geminiAPIKey)
 	authService := service.NewAuthService(googleClientID, googleClientSecret, googleRedirectURL, jwtSecret, userRepo)
 
 	// Handlers
 	productHandler := handler.NewProductHandler(productRepo)
+	storeHandler := handler.NewStoreHandler(storeRepo, productRepo)
 	priceHandler := handler.NewPriceHandler(priceRepo)
 	notificationHandler := handler.NewNotificationHandler(notificationRepo)
-	scrapeHandler := handler.NewScrapeHandler(productRepo, priceRepo, trackingService)
+	scrapeHandler := handler.NewScrapeHandler(storeRepo, priceRepo, trackingService)
 	authHandler := handler.NewAuthHandler(authService, frontendURL)
 
 	router := gin.Default()
@@ -143,12 +145,18 @@ func main() {
 			protected.PUT("/products/:id", productHandler.UpdateProduct)
 			protected.DELETE("/products/:id", productHandler.DeleteProduct)
 
-			// Prices
-			protected.GET("/products/:id/prices", priceHandler.GetPricesByProductID)
-			protected.GET("/products/:id/prices/latest", priceHandler.GetLatestPrice)
+			// Stores
+			protected.POST("/products/:id/stores", storeHandler.CreateStore)
+			protected.GET("/products/:id/stores", storeHandler.GetStoresByProductID)
+			protected.PUT("/stores/:id", storeHandler.UpdateStore)
+			protected.DELETE("/stores/:id", storeHandler.DeleteStore)
 
-			// Scrape
-			protected.POST("/products/:id/scrape", scrapeHandler.ScrapeProduct)
+			// Prices (by store)
+			protected.GET("/stores/:id/prices", priceHandler.GetPricesByStoreID)
+			protected.GET("/stores/:id/prices/latest", priceHandler.GetLatestPrice)
+
+			// Scrape (by store)
+			protected.POST("/stores/:id/scrape", scrapeHandler.ScrapeStore)
 
 			// Notifications
 			protected.GET("/notifications/unread", notificationHandler.GetUnreadNotifications)
