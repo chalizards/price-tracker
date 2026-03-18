@@ -14,16 +14,16 @@ var (
 	noscriptRegex = regexp.MustCompile(`(?i)<noscript[\s\S]*?</noscript>`)
 	svgRegex      = regexp.MustCompile(`(?i)<svg[\s\S]*?</svg>`)
 	iframeRegex   = regexp.MustCompile(`(?i)<iframe[\s\S]*?</iframe>`)
+	footerRegex   = regexp.MustCompile(`(?i)<footer[\s\S]*?</footer>`)
 	imgRegex      = regexp.MustCompile(`(?i)<img[^>]*>`)
-	dataAttrRegex = regexp.MustCompile(`(?i)\s+data-[\w-]+="[^"]*"`)
+	tagRegex      = regexp.MustCompile(`<[^>]+>`)
 	spaceRegex    = regexp.MustCompile(`\s{2,}`)
 )
 
-// SanitizeForLLM removes potentially dangerous and unnecessary content
-// from HTML before sending it to the LLM, protecting against prompt injection
-// and reducing token usage.
+// SanitizeForLLM removes unnecessary content from HTML before sending
+// it to the LLM, reducing token usage and noise.
 func SanitizeForLLM(html string) string {
-	// Remove HTML comments (main prompt injection vector)
+	// Remove HTML comments (prompt injection vector)
 	html = commentRegex.ReplaceAllString(html, "")
 
 	// Remove script tags and content
@@ -37,11 +37,14 @@ func SanitizeForLLM(html string) string {
 	html = svgRegex.ReplaceAllString(html, "")
 	html = iframeRegex.ReplaceAllString(html, "")
 
+	// Remove footer (safe — never contains product price)
+	html = footerRegex.ReplaceAllString(html, "")
+
 	// Remove img tags (not needed for price extraction)
 	html = imgRegex.ReplaceAllString(html, "")
 
-	// Remove data attributes (reduce noise)
-	html = dataAttrRegex.ReplaceAllString(html, "")
+	// Strip all HTML tags, keep only text content
+	html = tagRegex.ReplaceAllString(html, " ")
 
 	// Collapse whitespace
 	html = spaceRegex.ReplaceAllString(html, " ")

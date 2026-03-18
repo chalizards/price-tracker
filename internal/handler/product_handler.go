@@ -74,22 +74,6 @@ func (handler *ProductHandler) GetProductByID(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, product)
 }
 
-func (handler *ProductHandler) GetProductBySlug(ctx *gin.Context) {
-	slug := ctx.Param("slug")
-
-	product, err := handler.repo.GetBySlug(ctx.Request.Context(), slug)
-	if err != nil {
-		if err == pgx.ErrNoRows {
-			ctx.JSON(http.StatusNotFound, gin.H{"error": "product not found"})
-			return
-		}
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get product"})
-		return
-	}
-
-	ctx.JSON(http.StatusOK, product)
-}
-
 func (handler *ProductHandler) GetActiveProducts(ctx *gin.Context) {
 	products, err := handler.repo.GetActive(ctx.Request.Context())
 	if err != nil {

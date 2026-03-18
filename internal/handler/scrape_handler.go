@@ -42,11 +42,17 @@ func (handler *ScrapeHandler) ScrapeProduct(ctx *gin.Context) {
 		return
 	}
 
-	latest, err := handler.priceRepo.GetLatestByProductID(ctx.Request.Context(), product.ID)
+	prices, err := handler.priceRepo.GetByProductID(ctx.Request.Context(), product.ID)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "scraped but failed to fetch price"})
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "scraped but failed to fetch prices"})
 		return
 	}
 
-	ctx.JSON(http.StatusOK, latest)
+	// Return latest prices from this scrape (pix + credit)
+	limit := 2
+	if len(prices) < limit {
+		limit = len(prices)
+	}
+
+	ctx.JSON(http.StatusOK, prices[:limit])
 }

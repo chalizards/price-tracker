@@ -34,13 +34,14 @@ func (service *NotificationService) checkTargetReached(ctx context.Context, prod
 	}
 
 	title := fmt.Sprintf("Target price reached for %s", product.Name)
-	message := fmt.Sprintf("Current price: %s %.2f (target: %.2f)", newPrice.Currency, newPrice.Price, *product.TargetPrice)
+	message := fmt.Sprintf("Current price: %s %.2f via %s (target: %.2f)",
+		newPrice.Currency, newPrice.Price, newPrice.PaymentType, *product.TargetPrice)
 
 	service.CreateNotification(ctx, product, &newPrice.ID, message, title, models.NotificationTargetReached)
 }
 
 func (service *NotificationService) checkPriceDrop(ctx context.Context, product *models.Product, newPrice *models.Price) {
-	previousPrices, err := service.priceRepo.GetByProductID(ctx, product.ID)
+	previousPrices, err := service.priceRepo.GetByProductID(ctx, product.ID, newPrice.PaymentType)
 	if err != nil || len(previousPrices) < 2 {
 		return
 	}
@@ -51,8 +52,9 @@ func (service *NotificationService) checkPriceDrop(ctx context.Context, product 
 	}
 
 	drop := previousPrice.Price - newPrice.Price
-	title := fmt.Sprintf("Price drop for %s", product.Name)
-	message := fmt.Sprintf("Price dropped by %s %.2f (from %.2f to %.2f)", newPrice.Currency, drop, previousPrice.Price, newPrice.Price)
+	title := fmt.Sprintf("Price drop for %s (%s)", product.Name, newPrice.PaymentType)
+	message := fmt.Sprintf("Price dropped by %s %.2f (from %.2f to %.2f) via %s",
+		newPrice.Currency, drop, previousPrice.Price, newPrice.Price, newPrice.PaymentType)
 	service.CreateNotification(ctx, product, &newPrice.ID, message, title, models.NotificationPriceDrop)
 }
 
