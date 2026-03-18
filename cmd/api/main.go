@@ -5,13 +5,10 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"os/signal"
-	"strconv"
-	"syscall"
 
+	"github.com/chalizards/price-tracker/internal/cache"
 	"github.com/chalizards/price-tracker/internal/handler"
 	"github.com/chalizards/price-tracker/internal/repository"
-	"github.com/chalizards/price-tracker/internal/scheduler"
 	"github.com/chalizards/price-tracker/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -27,12 +24,26 @@ func main() {
 		log.Fatal("DATABASE_URL is required")
 	}
 
+	redisURL := os.Getenv("REDIS_URL")
+	if redisURL == "" {
+		log.Fatal("REDIS_URL is required")
+	}
+
+	redisClient, err := cache.NewRedisClient(redisURL)
+	if err != nil {
+		log.Fatalf("Failed to connect to Redis: %v", err)
+	}
+	defer redisClient.Close()
+
 	geminiSecretName := os.Getenv("GEMINI_SECRET_NAME")
 	if geminiSecretName == "" {
 		log.Fatal("GEMINI_SECRET_NAME is required")
 	}
 
-	geminiAPIKey := service.GetGeminiSecret(geminiSecretName)
+	geminiAPIKey, err := service.GetGeminiSecret(context.Background(), redisClient, geminiSecretName)
+	if err != nil {
+		log.Fatalf("Failed to get Gemini secret: %v", err)
+	}
 	if geminiAPIKey == "" {
 		log.Fatal("GEMINI_API_KEY is required")
 	}
@@ -62,15 +73,6 @@ func main() {
 		frontendURL = "http://localhost:3000" // Default for local frontend (React/Next.js)
 	}
 
-	scrapeIntervalStr := os.Getenv("SCRAPE_INTERVAL_MINUTES")
-	if scrapeIntervalStr == "" {
-		log.Fatal("SCRAPE_INTERVAL_MINUTES is required")
-	}
-	scrapeInterval, err := strconv.Atoi(scrapeIntervalStr)
-	if err != nil {
-		log.Fatal("SCRAPE_INTERVAL_MINUTES must be a valid integer")
-	}
-
 	db, err := repository.NewPostgresPool(databaseURL)
 	if err != nil {
 		log.Fatal(err)
@@ -87,13 +89,6 @@ func main() {
 	notificationService := service.NewNotificationService(notificationRepo, priceRepo)
 	trackingService := service.NewPriceTrackingService(productRepo, priceRepo, notificationService, geminiAPIKey)
 	authService := service.NewAuthService(googleClientID, googleClientSecret, googleRedirectURL, jwtSecret, userRepo)
-
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-
-	// Scheduler
-	sc := scheduler.NewScheduler(trackingService, scrapeInterval)
-	go sc.Start(ctx)
 
 	// Handlers
 	productHandler := handler.NewProductHandler(productRepo)
@@ -145,7 +140,6 @@ func main() {
 			protected.GET("/products", productHandler.GetAllProducts)
 			protected.GET("/products/active", productHandler.GetActiveProducts)
 			protected.GET("/products/:id", productHandler.GetProductByID)
-			protected.GET("/products/slug/:slug", productHandler.GetProductBySlug)
 			protected.PUT("/products/:id", productHandler.UpdateProduct)
 			protected.DELETE("/products/:id", productHandler.DeleteProduct)
 
