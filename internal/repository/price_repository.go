@@ -17,23 +17,31 @@ func NewPriceRepository(db *pgxpool.Pool) *PriceRepository {
 
 func (repo *PriceRepository) Create(ctx context.Context, price *models.Price) error {
 	query := `
-		INSERT INTO prices (product_id, price, currency)
-		VALUES ($1, $2, $3)
-		RETURNING id, product_id, price, currency, scraped_at
+		INSERT INTO prices (product_id, price, currency, payment_type)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id, product_id, price, currency, payment_type, scraped_at
 	`
 	return repo.db.QueryRow(ctx, query,
-		price.ProductID, price.Price, price.Currency,
-	).Scan(&price.ID, &price.ProductID, &price.Price, &price.Currency, &price.ScrapedAt)
+		price.ProductID, price.Price, price.Currency, price.PaymentType,
+	).Scan(&price.ID, &price.ProductID, &price.Price, &price.Currency, &price.PaymentType, &price.ScrapedAt)
 }
 
-func (repo *PriceRepository) GetByProductID(ctx context.Context, productID int) ([]models.Price, error) {
+func (repo *PriceRepository) GetByProductID(ctx context.Context, productID int, paymentType ...models.PaymentType) ([]models.Price, error) {
 	query := `
-		SELECT id, product_id, price, currency, scraped_at
+		SELECT id, product_id, price, currency, payment_type, scraped_at
 		FROM prices
 		WHERE product_id = $1
-		ORDER BY scraped_at DESC
 	`
-	rows, err := repo.db.Query(ctx, query, productID)
+	args := []any{productID}
+
+	if len(paymentType) > 0 && paymentType[0] != "" {
+		query += " AND payment_type = $2"
+		args = append(args, paymentType[0])
+	}
+
+	query += " ORDER BY scraped_at DESC"
+
+	rows, err := repo.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +50,7 @@ func (repo *PriceRepository) GetByProductID(ctx context.Context, productID int) 
 	var prices []models.Price
 	for rows.Next() {
 		var price models.Price
-		err := rows.Scan(&price.ID, &price.ProductID, &price.Price, &price.Currency, &price.ScrapedAt)
+		err := rows.Scan(&price.ID, &price.ProductID, &price.Price, &price.Currency, &price.PaymentType, &price.ScrapedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -51,17 +59,24 @@ func (repo *PriceRepository) GetByProductID(ctx context.Context, productID int) 
 	return prices, nil
 }
 
-func (repo *PriceRepository) GetLatestByProductID(ctx context.Context, productID int) (*models.Price, error) {
+func (repo *PriceRepository) GetLatestByProductID(ctx context.Context, productID int, paymentType ...models.PaymentType) (*models.Price, error) {
 	query := `
-		SELECT id, product_id, price, currency, scraped_at
+		SELECT id, product_id, price, currency, payment_type, scraped_at
 		FROM prices
 		WHERE product_id = $1
-		ORDER BY scraped_at DESC
-		LIMIT 1
 	`
+	args := []any{productID}
+
+	if len(paymentType) > 0 && paymentType[0] != "" {
+		query += " AND payment_type = $2"
+		args = append(args, paymentType[0])
+	}
+
+	query += " ORDER BY scraped_at DESC LIMIT 1"
+
 	price := &models.Price{}
-	err := repo.db.QueryRow(ctx, query, productID).Scan(
-		&price.ID, &price.ProductID, &price.Price, &price.Currency, &price.ScrapedAt,
+	err := repo.db.QueryRow(ctx, query, args...).Scan(
+		&price.ID, &price.ProductID, &price.Price, &price.Currency, &price.PaymentType, &price.ScrapedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -71,7 +86,7 @@ func (repo *PriceRepository) GetLatestByProductID(ctx context.Context, productID
 
 func (repo *PriceRepository) GetAll(ctx context.Context) ([]models.Price, error) {
 	query := `
-		SELECT id, product_id, price, currency, scraped_at
+		SELECT id, product_id, price, currency, payment_type, scraped_at
 		FROM prices
 		ORDER BY scraped_at DESC
 	`
@@ -84,7 +99,7 @@ func (repo *PriceRepository) GetAll(ctx context.Context) ([]models.Price, error)
 	var prices []models.Price
 	for rows.Next() {
 		var p models.Price
-		err := rows.Scan(&p.ID, &p.ProductID, &p.Price, &p.Currency, &p.ScrapedAt)
+		err := rows.Scan(&p.ID, &p.ProductID, &p.Price, &p.Currency, &p.PaymentType, &p.ScrapedAt)
 		if err != nil {
 			return nil, err
 		}

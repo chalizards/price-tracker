@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+
 	"github.com/chalizards/price-tracker/internal/models"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -17,42 +18,24 @@ func NewProductRepository(db *pgxpool.Pool) *ProductRepository {
 
 func (repo *ProductRepository) Create(ctx context.Context, product *models.Product) error {
 	query := `
-		INSERT INTO products (name, slug, url, store, target_price, active)
-		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING id, name, slug, url, store, target_price, active, created_at, updated_at
+		INSERT INTO products (name, url, store, target_price, active)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id, name, url, store, target_price, active, created_at, updated_at
 	`
 	return repo.db.QueryRow(ctx, query,
-		product.Name, product.Slug, product.URL, product.Store, product.TargetPrice, product.Active,
-	).Scan(&product.ID, &product.Name, &product.Slug, &product.URL, &product.Store, &product.TargetPrice, &product.Active, &product.CreatedAt, &product.UpdatedAt)
+		product.Name, product.URL, product.Store, product.TargetPrice, product.Active,
+	).Scan(&product.ID, &product.Name, &product.URL, &product.Store, &product.TargetPrice, &product.Active, &product.CreatedAt, &product.UpdatedAt)
 }
 
 func (repo *ProductRepository) GetByID(ctx context.Context, id int) (*models.Product, error) {
 	query := `
-		SELECT id, name, slug, url, store, target_price, active, created_at, updated_at
+		SELECT id, name, url, store, target_price, active, created_at, updated_at
 		FROM products
 		WHERE id = $1
 	`
 	product := &models.Product{}
 	err := repo.db.QueryRow(ctx, query, id).Scan(
-		&product.ID, &product.Name, &product.Slug, &product.URL, &product.Store, &product.TargetPrice,
-		&product.Active, &product.CreatedAt, &product.UpdatedAt,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return product, nil
-}
-
-func (repo *ProductRepository) GetBySlug(ctx context.Context, slug string) (*models.Product, error) {
-	query := `
-		SELECT id, name, slug, url, store, target_price, active, created_at, updated_at
-		FROM products
-		WHERE slug = $1
-	`
-	product := &models.Product{}
-	err := repo.db.QueryRow(ctx, query, slug).Scan(
-		&product.ID, &product.Name, &product.Slug, &product.URL, &product.Store, &product.TargetPrice,
+		&product.ID, &product.Name, &product.URL, &product.Store, &product.TargetPrice,
 		&product.Active, &product.CreatedAt, &product.UpdatedAt,
 	)
 	if err != nil {
@@ -64,7 +47,7 @@ func (repo *ProductRepository) GetBySlug(ctx context.Context, slug string) (*mod
 
 func (repo *ProductRepository) GetByName(ctx context.Context, name string) ([]models.Product, error) {
 	query := `
-		SELECT id, name, slug, url, store, target_price, active, created_at, updated_at
+		SELECT id, name, url, store, target_price, active, created_at, updated_at
 		FROM products
 		WHERE name ILIKE '%' || $1 || '%'
 	`
@@ -79,7 +62,7 @@ func (repo *ProductRepository) GetByName(ctx context.Context, name string) ([]mo
 	for rows.Next() {
 		var product models.Product
 		err := rows.Scan(
-			&product.ID, &product.Name, &product.Slug, &product.URL, &product.Store, &product.TargetPrice,
+			&product.ID, &product.Name, &product.URL, &product.Store, &product.TargetPrice,
 			&product.Active, &product.CreatedAt, &product.UpdatedAt,
 		)
 		if err != nil {
@@ -93,7 +76,7 @@ func (repo *ProductRepository) GetByName(ctx context.Context, name string) ([]mo
 
 func (repo *ProductRepository) GetAll(ctx context.Context) ([]models.Product, error) {
 	query := `
-		SELECT id, name, slug, url, store, target_price, active, created_at, updated_at
+		SELECT id, name, url, store, target_price, active, created_at, updated_at
 		FROM products
 		ORDER BY created_at DESC
 	`
@@ -108,7 +91,7 @@ func (repo *ProductRepository) GetAll(ctx context.Context) ([]models.Product, er
 	for rows.Next() {
 		var product models.Product
 		err := rows.Scan(
-			&product.ID, &product.Name, &product.Slug, &product.URL, &product.Store, &product.TargetPrice,
+			&product.ID, &product.Name, &product.URL, &product.Store, &product.TargetPrice,
 			&product.Active, &product.CreatedAt, &product.UpdatedAt,
 		)
 		if err != nil {
@@ -157,14 +140,14 @@ func (repo *ProductRepository) Update(ctx context.Context, product *models.Produ
 		UPDATE products
 		SET name = $1, url = $2, target_price = $3, active = $4, updated_at = NOW()
 		WHERE id = $5
-		RETURNING id, name, slug, url, store, target_price, active, created_at, updated_at
+		RETURNING id, name, url, store, target_price, active, created_at, updated_at
 	`
 	updatedProduct := &models.Product{}
 
 	err := repo.db.QueryRow(ctx, query,
 		product.Name, product.URL, product.TargetPrice, product.Active, product.ID,
 	).Scan(
-		&updatedProduct.ID, &updatedProduct.Name, &updatedProduct.Slug, &updatedProduct.URL, &updatedProduct.Store, &updatedProduct.TargetPrice,
+		&updatedProduct.ID, &updatedProduct.Name, &updatedProduct.URL, &updatedProduct.Store, &updatedProduct.TargetPrice,
 		&updatedProduct.Active, &updatedProduct.CreatedAt, &updatedProduct.UpdatedAt,
 	)
 	if err != nil {

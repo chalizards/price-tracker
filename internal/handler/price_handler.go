@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/chalizards/price-tracker/internal/models"
 	"github.com/chalizards/price-tracker/internal/repository"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
@@ -24,7 +25,13 @@ func (handler *PriceHandler) GetPricesByProductID(ctx *gin.Context) {
 		return
 	}
 
-	prices, err := handler.repo.GetByProductID(ctx.Request.Context(), productID)
+	var prices []models.Price
+	paymentType := ctx.Query("payment_type")
+	if paymentType != "" {
+		prices, err = handler.repo.GetByProductID(ctx.Request.Context(), productID, models.PaymentType(paymentType))
+	} else {
+		prices, err = handler.repo.GetByProductID(ctx.Request.Context(), productID)
+	}
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get prices"})
 		return
@@ -40,7 +47,13 @@ func (handler *PriceHandler) GetLatestPrice(ctx *gin.Context) {
 		return
 	}
 
-	price, err := handler.repo.GetLatestByProductID(ctx.Request.Context(), productID)
+	paymentType := ctx.Query("payment_type")
+	var price *models.Price
+	if paymentType != "" {
+		price, err = handler.repo.GetLatestByProductID(ctx.Request.Context(), productID, models.PaymentType(paymentType))
+	} else {
+		price, err = handler.repo.GetLatestByProductID(ctx.Request.Context(), productID)
+	}
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			ctx.JSON(http.StatusNotFound, gin.H{"error": "no prices found for this product"})

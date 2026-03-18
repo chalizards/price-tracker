@@ -54,19 +54,22 @@ func (s *PriceTrackingService) ScrapeProduct(ctx context.Context, product *model
 		return fmt.Errorf("failed to extract price: %w", err)
 	}
 
-	price := &models.Price{
-		ProductID: product.ID,
-		Price:     result.Price,
-		Currency:  result.Currency,
+	for _, entry := range result.Prices {
+		price := &models.Price{
+			ProductID:   product.ID,
+			Price:       entry.Price,
+			Currency:    entry.Currency,
+			PaymentType: models.PaymentType(entry.PaymentType),
+		}
+
+		if err := s.priceRepo.Create(ctx, price); err != nil {
+			return fmt.Errorf("failed to save price (%s): %w", entry.PaymentType, err)
+		}
+
+		log.Printf("Price saved: %s %.2f (%s) for %s", price.Currency, price.Price, price.PaymentType, product.Name)
+
+		s.notificationService.CheckPriceNotifications(ctx, product, price)
 	}
-
-	if err := s.priceRepo.Create(ctx, price); err != nil {
-		return fmt.Errorf("failed to save price: %w", err)
-	}
-
-	log.Printf("Price saved: %s %.2f for %s", price.Currency, price.Price, product.Name)
-
-	s.notificationService.CheckPriceNotifications(ctx, product, price)
 
 	return nil
 }

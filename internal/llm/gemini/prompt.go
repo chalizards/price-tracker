@@ -2,11 +2,18 @@ package gemini
 
 import "fmt"
 
-func buildPriceExtractionPrompt(productName string, html string) string {
-	return fmt.Sprintf(`Analyze this HTML page and find the current total price of the product "%s".
-Respond ONLY with a JSON object in this exact format, no other text:
-{"price": 1234.56, "currency": "BRL"}
+func buildPriceExtractionPrompt(productName string, pageText string) string {
+	return fmt.Sprintf(`Find the current selling prices of the product "%s" in the page text below.
+Brazilian e-commerce sites usually show two prices:
+1. PIX/cash price (discounted) - labeled as "à vista", "no PIX", "no boleto", or similar
+2. Credit card price (full price) - the base price or labeled as "no cartão", "parcelado", or the higher price
 
-HTML:
-%s`, productName, html)
+Brazilian prices use comma as decimal separator (e.g. "R$ 4.999,00" = 4999.00).
+If only one price is visible, return it as "pix".
+
+Respond ONLY with a JSON object in this exact format, no other text:
+{"prices": [{"price": 1234.56, "currency": "BRL", "payment_type": "pix"}, {"price": 1399.90, "currency": "BRL", "payment_type": "credit"}]}
+
+Page text:
+%s`, productName, pageText)
 }
