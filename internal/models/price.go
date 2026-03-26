@@ -11,7 +11,7 @@ const (
 
 type Price struct {
 	ID          int         `json:"id"`
-	StoreID     int         `json:"store_id"`
+	OfferID     int         `json:"offer_id"`
 	Price       float64     `json:"price"`
 	Currency    string      `json:"currency"`
 	PaymentType PaymentType `json:"payment_type"`

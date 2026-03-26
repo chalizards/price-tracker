@@ -81,22 +81,22 @@ func main() {
 
 	// Repositories
 	productRepo := repository.NewProductRepository(db)
-	storeRepo := repository.NewStoreRepository(db)
+	offerRepo := repository.NewOfferRepository(db)
 	priceRepo := repository.NewPriceRepository(db)
 	notificationRepo := repository.NewNotificationRepository(db)
 	userRepo := repository.NewUserRepository(db)
 
 	// Services
 	notificationService := service.NewNotificationService(notificationRepo, priceRepo)
-	trackingService := service.NewPriceTrackingService(productRepo, storeRepo, priceRepo, notificationService, geminiAPIKey)
+	trackingService := service.NewPriceTrackingService(productRepo, offerRepo, priceRepo, notificationService, geminiAPIKey)
 	authService := service.NewAuthService(googleClientID, googleClientSecret, googleRedirectURL, jwtSecret, userRepo)
 
 	// Handlers
 	productHandler := handler.NewProductHandler(productRepo)
-	storeHandler := handler.NewStoreHandler(storeRepo, productRepo)
+	offerHandler := handler.NewOfferHandler(offerRepo, productRepo)
 	priceHandler := handler.NewPriceHandler(priceRepo)
 	notificationHandler := handler.NewNotificationHandler(notificationRepo)
-	scrapeHandler := handler.NewScrapeHandler(storeRepo, priceRepo, trackingService)
+	scrapeHandler := handler.NewScrapeHandler(offerRepo, priceRepo, trackingService)
 	authHandler := handler.NewAuthHandler(authService, frontendURL)
 
 	router := gin.Default()
@@ -145,18 +145,18 @@ func main() {
 			protected.PUT("/products/:id", productHandler.UpdateProduct)
 			protected.DELETE("/products/:id", productHandler.DeleteProduct)
 
-			// Stores
-			protected.POST("/products/:id/stores", storeHandler.CreateStore)
-			protected.GET("/products/:id/stores", storeHandler.GetStoresByProductID)
-			protected.PUT("/stores/:id", storeHandler.UpdateStore)
-			protected.DELETE("/stores/:id", storeHandler.DeleteStore)
+			// Offers
+			protected.POST("/products/:id/offers", offerHandler.CreateOffer)
+			protected.GET("/products/:id/offers", offerHandler.GetOffersByProductID)
+			protected.PUT("/offers/:id", offerHandler.UpdateOffer)
+			protected.DELETE("/offers/:id", offerHandler.DeleteOffer)
 
-			// Prices (by store)
-			protected.GET("/stores/:id/prices", priceHandler.GetPricesByStoreID)
-			protected.GET("/stores/:id/prices/latest", priceHandler.GetLatestPrice)
+			// Prices (by offer)
+			protected.GET("/offers/:id/prices", priceHandler.GetPricesByOfferID)
+			protected.GET("/offers/:id/prices/latest", priceHandler.GetLatestPrice)
 
-			// Scrape (by store)
-			protected.POST("/stores/:id/scrape", scrapeHandler.ScrapeStore)
+			// Scrape (by offer)
+			protected.POST("/offers/:id/scrape", scrapeHandler.ScrapeOffer)
 
 			// Notifications
 			protected.GET("/notifications/unread", notificationHandler.GetUnreadNotifications)

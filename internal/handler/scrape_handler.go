@@ -13,29 +13,29 @@ import (
 )
 
 type ScrapeHandler struct {
-	storeRepo       *repository.StoreRepository
+	offerRepo       *repository.OfferRepository
 	priceRepo       *repository.PriceRepository
 	trackingService *service.PriceTrackingService
 }
 
-func NewScrapeHandler(storeRepo *repository.StoreRepository, priceRepo *repository.PriceRepository, trackingService *service.PriceTrackingService) *ScrapeHandler {
-	return &ScrapeHandler{storeRepo: storeRepo, priceRepo: priceRepo, trackingService: trackingService}
+func NewScrapeHandler(offerRepo *repository.OfferRepository, priceRepo *repository.PriceRepository, trackingService *service.PriceTrackingService) *ScrapeHandler {
+	return &ScrapeHandler{offerRepo: offerRepo, priceRepo: priceRepo, trackingService: trackingService}
 }
 
-func (handler *ScrapeHandler) ScrapeStore(ctx *gin.Context) {
+func (handler *ScrapeHandler) ScrapeOffer(ctx *gin.Context) {
 	id, err := strconv.Atoi(ctx.Param("id"))
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid store id"})
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid offer id"})
 		return
 	}
 
-	store, err := handler.storeRepo.GetByID(ctx.Request.Context(), id)
+	offer, err := handler.offerRepo.GetByID(ctx.Request.Context(), id)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			ctx.JSON(http.StatusNotFound, gin.H{"error": "store not found"})
+			ctx.JSON(http.StatusNotFound, gin.H{"error": "offer not found"})
 			return
 		}
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get store"})
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get offer"})
 		return
 	}
 
@@ -43,12 +43,12 @@ func (handler *ScrapeHandler) ScrapeStore(ctx *gin.Context) {
 	scrapeCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	if err := handler.trackingService.ScrapeStore(scrapeCtx, store); err != nil {
+	if err := handler.trackingService.ScrapeOffer(scrapeCtx, offer); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	prices, err := handler.priceRepo.GetByStoreID(ctx.Request.Context(), store.ID)
+	prices, err := handler.priceRepo.GetByOfferID(ctx.Request.Context(), offer.ID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "scraped but failed to fetch prices"})
 		return
