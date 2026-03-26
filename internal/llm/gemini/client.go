@@ -20,6 +20,7 @@ func ExtractPrice(ctx context.Context, apiKey string, html string, productName s
 	prompt := buildPriceExtractionPrompt(productName, cleanHTML)
 
 	reqBody := request{
+		SystemInstruction: &content{Parts: []part{{Text: systemInstruction}}},
 		Contents: []content{
 			{Parts: []part{{Text: prompt}}},
 		},

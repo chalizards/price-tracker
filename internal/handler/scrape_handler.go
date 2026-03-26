@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/chalizards/price-tracker/internal/repository"
 	"github.com/chalizards/price-tracker/internal/service"
@@ -11,38 +13,42 @@ import (
 )
 
 type ScrapeHandler struct {
-	productRepo     *repository.ProductRepository
+	offerRepo       *repository.OfferRepository
 	priceRepo       *repository.PriceRepository
 	trackingService *service.PriceTrackingService
 }
 
-func NewScrapeHandler(productRepo *repository.ProductRepository, priceRepo *repository.PriceRepository, trackingService *service.PriceTrackingService) *ScrapeHandler {
-	return &ScrapeHandler{productRepo: productRepo, priceRepo: priceRepo, trackingService: trackingService}
+func NewScrapeHandler(offerRepo *repository.OfferRepository, priceRepo *repository.PriceRepository, trackingService *service.PriceTrackingService) *ScrapeHandler {
+	return &ScrapeHandler{offerRepo: offerRepo, priceRepo: priceRepo, trackingService: trackingService}
 }
 
-func (handler *ScrapeHandler) ScrapeProduct(ctx *gin.Context) {
+func (handler *ScrapeHandler) ScrapeOffer(ctx *gin.Context) {
 	id, err := strconv.Atoi(ctx.Param("id"))
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid product id"})
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid offer id"})
 		return
 	}
 
-	product, err := handler.productRepo.GetByID(ctx.Request.Context(), id)
+	offer, err := handler.offerRepo.GetByID(ctx.Request.Context(), id)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			ctx.JSON(http.StatusNotFound, gin.H{"error": "product not found"})
+			ctx.JSON(http.StatusNotFound, gin.H{"error": "offer not found"})
 			return
 		}
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get product"})
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get offer"})
 		return
 	}
 
-	if err := handler.trackingService.ScrapeProduct(ctx.Request.Context(), product); err != nil {
+	// Use a detached context so the scrape isn't canceled if the HTTP client disconnects.
+	scrapeCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	if err := handler.trackingService.ScrapeOffer(scrapeCtx, offer); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	prices, err := handler.priceRepo.GetByProductID(ctx.Request.Context(), product.ID)
+	prices, err := handler.priceRepo.GetByOfferID(ctx.Request.Context(), offer.ID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "scraped but failed to fetch prices"})
 		return

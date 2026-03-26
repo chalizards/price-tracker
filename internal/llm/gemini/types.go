@@ -1,7 +1,8 @@
 package gemini
 
 type request struct {
-	Contents []content `json:"contents"`
+	SystemInstruction *content  `json:"system_instruction,omitempty"`
+	Contents          []content `json:"contents"`
 }
 
 type content struct {
